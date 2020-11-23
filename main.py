@@ -4,6 +4,7 @@ import time
 import sys
 import requests
 import os
+from git import Repo, GitError
 from yaml import safe_load
 
 
@@ -11,9 +12,13 @@ def main():
     Config.verify_config()
     
     projects_dict = fetch_projects_info()
-    clone_repos(projects_dict, True)
+    # projects_dict = {key: value for (key,value) in projects_dict.items() if key == "infra"}
+    start = time.perf_counter()
+    clone_repos(projects_dict)
+    end = time.perf_counter()
+    logger.debug(f"Finished fetching, took: {(end - start):.3f} seconds")
 
-    
+
 def fetch_projects_info():
     projects_path = f'{Config.BASE_URL}/projects'
     url_params = {
@@ -34,33 +39,50 @@ def fetch_projects_info():
         response = requests.get(url=projects_path, params=url_params, headers=request_headers)
         body = response.json()
 
-        projects_dict.update({project["path"]: project["http_url_to_repo"] for project in body})
+        fetched_projects = {project["path"]: project["http_url_to_repo"] for project in body}
+        logger.debug(f"Fetched projects: {fetched_projects}")
+        projects_dict.update(fetched_projects)
 
         next_page = response.headers["X-Next-Page"]
         current_page += 1
         url_params["page"] = next_page
 
+    logger.info(f"Found {len(projects_dict)} projects.")
     return projects_dict
 
 
-def clone_repos(projects_dict, dry_run):
+def clone_repos(projects_dict):
+    cloned_projects = []
+    skipped_projects = []
     for project_name, project_url in projects_dict.items():
-        logger.info(f'Cloning project: {project_name} from url: {project_url}')
+        logger.debug(f'Cloning project: {project_name} from url: {project_url}')
         repo_dir = os.path.join(Config.OUTPUT, project_name)
         if os.path.exists(repo_dir):
-            logger.warn(f'Destination directory: {repo_dir} exists, skipping {project_name}')
+            logger.warning(f'Destination directory: {repo_dir} exists, skipping {project_name}')
+            skipped_projects.append(project_name)
             continue
         else:
-            if not dry_run:
-                pass
+            try:
+                repo = Repo.clone_from(url=project_url, to_path=repo_dir)
+            except GitError:
+                logger.error("Something went wrong while cloning the repo, skipping")
+                skipped_projects.append(project_name)
+                continue
+            except Exception:
+                logger.error("Something went terribly wrong, program will terminate soon")
+                sys.exit(1)
+            cloned_projects.append(project_name)
             logger.info(f'Cloned project: {project_name}, created directory: {repo_dir}')
-            
+    
+    logger.info(f"Cloned {len(cloned_projects)} projects and skipped {len(skipped_projects)}")
+    logger.debug(f"Cloned projects: {cloned_projects}")
+    logger.debug(f"Skipped projects: {skipped_projects}")
 
 
 def configure_logging():
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(message)s",
+        format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[logging.StreamHandler()],
     )
 
