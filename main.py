@@ -16,13 +16,14 @@ def main():
     start = time.perf_counter()
     clone_repos(projects_dict)
     end = time.perf_counter()
-    logger.debug(f"Finished fetching, took: {(end - start):.3f} seconds")
+    logger.debug(f"Finished cloning, took: {(end - start):.3f} seconds")
 
 
 def fetch_projects_info():
     projects_path = f'{Config.BASE_URL}/projects'
     url_params = {
         "simple": "true",
+        "archived": "false",
         "per_page": "100",
         "sort_by": "id",
         "sort": "asc"
@@ -39,7 +40,7 @@ def fetch_projects_info():
         response = requests.get(url=projects_path, params=url_params, headers=request_headers)
         body = response.json()
 
-        fetched_projects = {project["path"]: project["http_url_to_repo"] for project in body}
+        fetched_projects = {project["path_with_namespace"]: project["http_url_to_repo"] for project in body}
         logger.debug(f"Fetched projects: {fetched_projects}")
         projects_dict.update(fetched_projects)
 
@@ -54,8 +55,11 @@ def fetch_projects_info():
 def clone_repos(projects_dict):
     cloned_projects = []
     skipped_projects = []
+    i = 0
     for project_name, project_url in projects_dict.items():
+        i+=1
         logger.debug(f'Cloning project: {project_name} from url: {project_url}')
+        logger.info(f'Current progress: {i}/{len(projects_dict)}')
         repo_dir = os.path.join(Config.OUTPUT, project_name)
         if os.path.exists(repo_dir):
             logger.warning(f'Destination directory: {repo_dir} exists, skipping {project_name}')
