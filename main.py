@@ -23,13 +23,11 @@ def fetch_projects_info():
     projects_path = f'{Config.BASE_URL}/projects'
     url_params = {
         "simple": "true",
+        "private_token": Config.API_KEY,
         "archived": "false",
         "per_page": "100",
         "sort_by": "id",
         "sort": "asc"
-    }
-    request_headers = {
-        "PRIVATE_TOKEN" : Config.API_KEY
     }
 
     current_page = 1
@@ -37,7 +35,7 @@ def fetch_projects_info():
     projects_dict = {}
     
     while next_page or current_page == 1:
-        response = requests.get(url=projects_path, params=url_params, headers=request_headers)
+        response = requests.get(url=projects_path, params=url_params)
         body = response.json()
 
         fetched_projects = {project["path_with_namespace"]: project["http_url_to_repo"] for project in body}
@@ -85,7 +83,7 @@ def clone_repos(projects_dict):
 
 def configure_logging():
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[logging.StreamHandler()],
     )
